@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, url_for
+from flask import Flask, redirect, request
 import pandas as pd
 # import numpy as np
 import random
@@ -142,6 +142,8 @@ def reset_olymp():
     global olymp_matrix
     global display_olymp
 
+    rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
+
     game_olymp = olymp_gen(olymp_steps, starting_word='random')
 
     olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
@@ -171,6 +173,26 @@ def reset_olymp():
 
 @app.route('/', methods=['POST', 'GET'])
 def olymp_index():
+    global olymp_message
+    global game_olymp
+    global olymp_matrix
+    global display_olymp
+    global olymp_steps
+
+    global Nouns
+    global Sociation
+
+    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
+    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
+
+    olymp_steps = 4
+    rows, cols = (int(2**olymp_steps), (olymp_steps + 1))
+    game_olymp = [' ']
+    olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
+    display_olymp = [[' ' for i in range(cols)] for j in range(rows)]
+
+    reset_olymp()
+    olymp_message = '<p>Приветствую Вас!</p>'
     return redirect('/olymp')
 
 @app.route('/olymp', methods=['POST', 'GET'])
@@ -179,6 +201,9 @@ def olymp_start():
     global game_olymp
     global olymp_matrix
     global display_olymp
+    global olymp_steps
+
+    rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
 
     input_form = '''
       <form action = "/olymp" method = "post">
@@ -283,16 +308,4 @@ def olymp_start():
 
 if __name__ == '__main__':
 
-    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
-    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
-
-    olymp_steps = 4
-    rows, cols = (int(2**olymp_steps), (olymp_steps + 1))
-    game_olymp = [' ']
-    olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
-    display_olymp = [[' ' for i in range(cols)] for j in range(rows)]
-
-    reset_olymp()
-    olymp_message = '<p>Приветствую Вас!</p>'
-
-    app.run(debug=False)
+    app.run(debug=True)
