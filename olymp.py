@@ -169,6 +169,9 @@ def reset_olymp():
             reset_olymp()
     return
 
+@app.route('/', methods=['POST', 'GET'])
+def olymp_index():
+    return redirect('/olymp')
 
 @app.route('/olymp', methods=['POST', 'GET'])
 def olymp_start():
@@ -292,4 +295,4 @@ if __name__ == '__main__':
     reset_olymp()
     olymp_message = '<p>Приветствую Вас!</p>'
 
-    app.run(debug=True)
+    app.run(debug=False)
