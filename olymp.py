@@ -1,11 +1,11 @@
-from flask import Flask, redirect, request
+from flask import Flask, redirect, request, session
 import pandas as pd
-# import numpy as np
 import random
 import math
 
 app = Flask(__name__)
-
+# Set the secret key to some random bytes. Keep this really secret!
+app.secret_key = b'197alop_651351_ffg_2930'
 
 def list_to_rowspanhtml(olymp_list):
     ''' Turns 2d list e.g. [(1,2,3),(4,5,6),(7,8,9),(10,11,12)]
@@ -55,7 +55,7 @@ def olymp_auto(inputword: str, **kwargs):
       exclude: list of str
          список слов на исключение
     Returns:
-      List of strings
+      words: List of strings
     """
     # Lets define default keyword arguments and assign to variables
     if not ("difficulty" in kwargs):
@@ -70,6 +70,9 @@ def olymp_auto(inputword: str, **kwargs):
         exclude = []
     else:
         exclude = kwargs['exclude']
+
+    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
+    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
 
     aa = Sociation.loc[Sociation[0] == inputword][1]
     bb = Sociation.loc[Sociation[1] == inputword][0]
@@ -117,6 +120,10 @@ def olymp_gen(olymp_steps, starting_word = 'random'):
     Returns:
       List of strings
     """
+    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
+    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
+
+
     if starting_word == 'random':
         starting_word = Sociation.sample().values[0][0]
     # print(starting_word)
@@ -137,10 +144,7 @@ def olymp_gen(olymp_steps, starting_word = 'random'):
     return olymp_list
 
 
-def reset_olymp():
-    global game_olymp
-    global olymp_matrix
-    global display_olymp
+def reset_olymp(olymp_steps):
 
     rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
 
@@ -163,47 +167,35 @@ def reset_olymp():
     for i in range(rows):
         olymp_matrix[i] = olymp_matrix[i][::-1]
 
-    display_olymp = [[' ' for i in range(cols)] for j in range(rows)]
 
-    for i in range(rows):
-        display_olymp[i][0] = olymp_matrix[i][0]
-        if olymp_matrix[i][0].strip() == '':
-            reset_olymp()
-    return
+    return olymp_matrix
 
 @app.route('/', methods=['POST', 'GET'])
 def olymp_index():
-    global olymp_message
-    global game_olymp
-    global olymp_matrix
-    global display_olymp
-    global olymp_steps
-
-    global Nouns
-    global Sociation
-
-    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
-    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
 
     olymp_steps = 4
-    rows, cols = (int(2**olymp_steps), (olymp_steps + 1))
-    game_olymp = [' ']
-    olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
+    session['olymp_steps'] = olymp_steps
+    olymp_matrix = reset_olymp(olymp_steps)
+    rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
+    session['olymp_matrix'] = olymp_matrix
     display_olymp = [[' ' for i in range(cols)] for j in range(rows)]
+    for i in range(rows):
+        display_olymp[i][0] = olymp_matrix[i][0]
+    session['display_olymp'] = display_olymp
+    session['olymp_message'] = f'<p>Приветствую Вас!</p>'
 
-    reset_olymp()
-    olymp_message = '<p>Приветствую Вас!</p>'
     return redirect('/olymp')
 
 @app.route('/olymp', methods=['POST', 'GET'])
 def olymp_start():
-    global olymp_message
-    global game_olymp
-    global olymp_matrix
-    global display_olymp
-    global olymp_steps
 
+    olymp_steps = session.get('olymp_steps')
     rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
+    olymp_matrix = session.get('olymp_matrix')
+    display_olymp = session.get('display_olymp')
+    game_olymp = [j for sub in olymp_matrix for j in sub]
+    olymp_message = session.get('olymp_message')
+
 
     input_form = '''
       <form action = "/olymp" method = "post">
@@ -257,19 +249,28 @@ def olymp_start():
                 for j in range(1, cols):
                     if olymp_matrix[i][j] == otvet:
                         display_olymp[i][j] = otvet
+                        session['display_olymp'] = display_olymp
                         break
 
             olymp_message = f'<p>+{otvet}</p>'
+            session['olymp_message'] = olymp_message
 
             if display_olymp == olymp_matrix:
                 olymp_message = f'<p>Поздравляю!</p>'
+                session['olymp_message'] = olymp_message
 
             return redirect('/olymp')
 
         elif otvet == 'reset':
-            reset_olymp()
-            olymp_message = f'<p>Новая олимпийка.</p>'
+            olymp_matrix = reset_olymp(olymp_steps)
+            session['olymp_matrix'] = olymp_matrix
+            display_olymp = [[' ' for i in range(cols)] for j in range(rows)]
+            for i in range(rows):
+                display_olymp[i][0] = olymp_matrix[i][0]
+            session['display_olymp'] = display_olymp
 
+            olymp_message = f'<p>Новая олимпийка.</p>'
+            session['olymp_message'] = olymp_message
             return redirect('/olymp')
 
         elif otvet == 'help':
@@ -277,17 +278,22 @@ def olymp_start():
                 for j in range(1, cols):
                     if display_olymp[i][j] != olymp_matrix[i][j]:
                         display_olymp[i][j] = f'{olymp_matrix[i][j][0]}{"*" * (len(olymp_matrix[i][j])-2)}{olymp_matrix[i][j][-1]}'
+            session['display_olymp'] = display_olymp
             olymp_message = f'<p>Подсказки - с количеством букв.</p>'
+            session['olymp_message'] = olymp_message
             return redirect('/olymp')
 
         elif otvet == 'exit':
             display_olymp = olymp_matrix
+            session['display_olymp'] = display_olymp
             olymp_message = f'<p>Это полная олимпийка.</p>'
+            session['olymp_message'] = olymp_message
             return redirect('/olymp')
 
         else:
             if otvet != '':
                 olymp_message = f'<p>{otvet} - нет такого слова.</p>'
+                session['olymp_message'] = olymp_message
             return redirect('/olymp')
 
 
