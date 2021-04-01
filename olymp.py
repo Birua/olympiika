@@ -1,3 +1,13 @@
+'''
+    Version 0.11 dated April 01, 2021
+    First successful deploy to heroku.
+
+    Flask app for word game Olimpiika.
+    - generates olimpiika tree automatically from sociation.org data
+    - button for hints (first and last letters in a word with * for other letters)
+    - button for solution
+    - button for reset
+'''
 from flask import Flask, redirect, request, session
 import pandas as pd
 import random
@@ -42,10 +52,12 @@ def list_to_rowspanhtml(olymp_list):
     return htmltable
 
 
-def olymp_auto(inputword: str, **kwargs):
+def olymp_auto(nouns, sociation, inputword: str, **kwargs):
     """ Возвращает желаемое число ассоциаций по sociation.org.tsv
         Одно слово превращаем в 2 или больше через ассоциации.
     Args:
+      nouns - dataframe существительных
+      sociation - dataframe sociation
       inputword: str - исходное слово
     Kwargs:
       difficulty: str - сложность ассоциаций
@@ -71,8 +83,8 @@ def olymp_auto(inputword: str, **kwargs):
     else:
         exclude = kwargs['exclude']
 
-    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
-    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
+    Nouns = nouns
+    Sociation = sociation
 
     aa = Sociation.loc[Sociation[0] == inputword][1]
     bb = Sociation.loc[Sociation[1] == inputword][0]
@@ -133,7 +145,7 @@ def olymp_gen(olymp_steps, starting_word = 'random'):
     while i <= (2**olymp_steps - 2):  # 2**3 - 2 = 6 - получаем пару ассоциаций для 6 слов
         # extend not append - because [1,2].append([3,4]) = [1,2,[3,4]]
         # [1,2].extend([3,4]) = [1,2,3,4]
-        new_pair = olymp_auto(starting_word, quantity=2, exclude=olymp_list)
+        new_pair = olymp_auto(Nouns, Sociation, starting_word, quantity=2, exclude=olymp_list)
         if new_pair == 'Error_404':
             new_pair = (starting_word, 'Error_404')
             break
@@ -145,10 +157,21 @@ def olymp_gen(olymp_steps, starting_word = 'random'):
 
 
 def reset_olymp(olymp_steps):
+    """ Сброс - создание новой случайной олимпийки.
+    Args:
+      olymp_steps: int - к-во ступеней: (1) - слово + 2 ассоциации, (2) - слово + 2 ассоциации + 4 ассоциации и т.п.
+    Kwargs:
 
+    Returns:
+      olymp_matrix
+    """
     rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
 
-    game_olymp = olymp_gen(olymp_steps, starting_word='random')
+    game_olymp = ['  ']
+    # restart auto generator for Random word until it gets a full game_olymp list
+    while any([x.strip() == '' for x in game_olymp]) or len(game_olymp) != 2**(olymp_steps+1) - 1:
+        game_olymp = olymp_gen(olymp_steps, starting_word='random')
+    # print(len(game_olymp), 2**(olymp_steps+1) - 1, game_olymp, [x.strip() == '' for x in game_olymp])
 
     olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
     # Превращаем строку в 2д матрицу
@@ -166,7 +189,6 @@ def reset_olymp(olymp_steps):
     # Инвертируем матрицу
     for i in range(rows):
         olymp_matrix[i] = olymp_matrix[i][::-1]
-
 
     return olymp_matrix
 
@@ -188,6 +210,9 @@ def olymp_index():
 
 @app.route('/olymp', methods=['POST', 'GET'])
 def olymp_start():
+
+    if session.get('olymp_steps') == None:
+        return redirect('/')
 
     olymp_steps = session.get('olymp_steps')
     rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
@@ -221,8 +246,13 @@ def olymp_start():
 
         </style>
     </head>
+    <nav>
+        <div align="right">
+            Version 0.11
+        </div>
+    </nav>
     <body>
-    <h1>Олимпийка</h1>
+    <h1>Автоолимпийка</h1>
     
     <main>
     '''
@@ -314,4 +344,4 @@ def olymp_start():
 
 if __name__ == '__main__':
 
-    app.run(debug=True)
+    app.run(debug=False)
