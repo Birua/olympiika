@@ -1,5 +1,5 @@
 '''
-    Version 0.11 dated April 01, 2021
+    Version 0.12 dated April 01, 2021
     First successful deploy to heroku.
 
     Flask app for word game Olimpiika.
@@ -223,14 +223,14 @@ def olymp_start():
 
 
     input_form = '''
-      <form action = "/olymp" method = "post">
-         <p>Введите слово:
-            <input type = "text" name = "nm" autofocus />
-            <input type = "submit" name = "submit" value = "отправить" />
-            <input type = "submit" name = "help" value = "подсказки" />            
-            <input type = "submit" name = "exit" value = "ответы" />
-            <input type = "submit" name = "reset" value = "сброс" /></p>
-      </form>'''
+              <form action = "/olymp" method = "post">
+                 <p>Введите слово:
+                    <input type = "text" name = "nm" autofocus />
+                    <input type = "submit" name = "submit" value = "отправить" />
+                    <input type = "submit" name = "help" value = "подсказки" />            
+                    <input type = "submit" name = "exit" value = "ответы" />
+                    <input type = "submit" name = "reset" value = "сброс" /></p>
+              </form>'''
 
     page_head = '''<!doctype html>
     <html lang="ru">
@@ -248,7 +248,7 @@ def olymp_start():
     </head>
     <nav>
         <div align="right">
-            Version 0.11
+            Version 0.12
         </div>
     </nav>
     <body>
@@ -330,7 +330,10 @@ def olymp_start():
     page = f'{page_head}' \
            f'{list_to_rowspanhtml(display_olymp)}' \
            f'{olymp_message}' \
-           f'''</main>
+           f'''
+            <br />&nbsp;<br />
+            <br />&nbsp;<br />
+        </main>
 
                <footer>
                    <div class ="container">
@@ -338,7 +341,7 @@ def olymp_start():
                    </div> 
                </footer>
 
-               </body></html>'''
+            </body></html>'''
 
     return page
 
