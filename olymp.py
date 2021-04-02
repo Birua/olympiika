@@ -1,6 +1,8 @@
 '''
-    Version 0.12 dated April 01, 2021
-    First successful deploy to heroku.
+    Version 0.11 dated April 01, 2021
+    - 0.11 -- First successful deploy to heroku.
+    - 0.12 -- Mobile view hotfix
+    - 0.13 -- 02/04/21 Nouns and Sociation load optimization
 
     Flask app for word game Olimpiika.
     - generates olimpiika tree automatically from sociation.org data
@@ -121,19 +123,21 @@ def olymp_auto(nouns, sociation, inputword: str, **kwargs):
     return words
 
 
-def olymp_gen(olymp_steps, starting_word = 'random'):
+def olymp_gen(nouns, sociation, olymp_steps, starting_word = 'random'):
     """ Генератор олимпиек
         Превращает одно слово (или случайное) в цепочку ассоциаций
         в виде олимпийки.
     Args:
+      nouns - dataframe существительных
+      sociation - dataframe sociation
       olymp_steps: int - к-во ступеней: (1) - слово + 2 ассоциации, (2) - слово + 2 ассоциации + 4 ассоциации и т.п.
     Kwargs:
       starting_word: str - начальное слово, случайное по умолчанию
     Returns:
       List of strings
     """
-    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
-    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
+    Nouns = nouns
+    Sociation = sociation
 
 
     if starting_word == 'random':
@@ -167,10 +171,13 @@ def reset_olymp(olymp_steps):
     """
     rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
 
+    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
+    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
+
     game_olymp = ['  ']
     # restart auto generator for Random word until it gets a full game_olymp list
     while any([x.strip() == '' for x in game_olymp]) or len(game_olymp) != 2**(olymp_steps+1) - 1:
-        game_olymp = olymp_gen(olymp_steps, starting_word='random')
+        game_olymp = olymp_gen(Nouns, Sociation, olymp_steps, starting_word='random')
     # print(len(game_olymp), 2**(olymp_steps+1) - 1, game_olymp, [x.strip() == '' for x in game_olymp])
 
     olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
@@ -248,7 +255,7 @@ def olymp_start():
     </head>
     <nav>
         <div align="right">
-            Version 0.12
+            <font size="-1">Версия 0.13</font>
         </div>
     </nav>
     <body>
