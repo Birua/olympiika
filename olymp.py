@@ -1,14 +1,17 @@
 '''
-    Version 0.11 dated April 01, 2021
-    - 0.11 -- First successful deploy to heroku.
-    - 0.12 -- Mobile view hotfix
-    - 0.13 -- 02/04/21 Nouns and Sociation load optimization
-
     Flask app for word game Olimpiika.
     - generates olimpiika tree automatically from sociation.org data
     - button for hints (first and last letters in a word with * for other letters)
     - button for solution
     - button for reset
+
+    Versions History:
+    - 0.15 -- 19/04/21 Bug fixes - trim spaces, word already entered, letter yo, exclude some 18+ words
+    - 0.14 -- 14/04/21 Classes OOP (under development)
+    - 0.13 -- 02/04/21 Nouns and Sociation load optimization
+    - 0.12 -- Mobile view hotfix
+    - 0.11 -- First successful deploy to heroku. Dated April 01, 2021
+
 '''
 from flask import Flask, redirect, request, session
 import pandas as pd
@@ -18,6 +21,45 @@ import math
 app = Flask(__name__)
 # Set the secret key to some random bytes. Keep this really secret!
 app.secret_key = b'197alop_651351_ffg_2930'
+
+
+class Olimpiika:
+    '''
+    Создает, проверяет и сохраняет олимпийки
+
+    Args:
+        steps (int):
+            к-во ступеней: (1) - слово + 2 ассоциации, (2) - слово + 2 ассоциации + 4 ассоциации и т.п.
+        starting_word (str):
+            начальное слово, случайное (='random') по умолчанию
+    Kwargs:
+        difficulty (str):
+            сложность ассоциаций 'easy' - 4 первых (по умолчанию) или 'hard'- весь список
+    Attributes:
+        steps (int):
+            к-во ступеней
+        starting_word (str):
+            начальное слово
+        difficulty (str):
+            сложность ассоциаций
+    Methods:
+        hints():
+            Подсказки с количеством букв: пример = п****р
+        solution():
+            Все ответы
+        reset():
+            Сброс
+        save():
+        load():
+    '''
+    def __init__(self, steps, starting_word='random', **kwargs):
+        self.steps = steps
+        self.starting_word = starting_word
+        if not ("difficulty" in kwargs):
+            self.difficulty = 'easy'
+        else:
+            self.difficulty = kwargs['difficulty']
+
 
 def list_to_rowspanhtml(olymp_list):
     ''' Turns 2d list e.g. [(1,2,3),(4,5,6),(7,8,9),(10,11,12)]
@@ -85,6 +127,14 @@ def olymp_auto(nouns, sociation, inputword: str, **kwargs):
     else:
         exclude = kwargs['exclude']
 
+    # Фильтрация слов 18+
+    exclude18 = ['член', 'мастурбация', 'минет', 'порнография', 'стриптиз',
+                 'анал', 'куннилингус', 'порно', 'презерватив', 'презервативы',
+                 'секс', 'совокупление', 'хуй', 'шлюха', 'эрекция', 'эротика',
+                 'сосок', 'оргия', 'клитор', 'девственность', 'возбуждение',
+                 'влагалище', 'дефлорация', 'зачатие', 'фетиш',
+                 'проституция',]
+
     Nouns = nouns
     Sociation = sociation
 
@@ -97,6 +147,8 @@ def olymp_auto(nouns, sociation, inputword: str, **kwargs):
 
     # Уберем слова, которые даны в списке исключений
     # ~ - инвертируем булины
+    aa = aa[~aa.isin(exclude18)]
+    bb = bb[~bb.isin(exclude18)]
     aa = aa[~aa.isin(exclude)]
     bb = bb[~bb.isin(exclude)]
 
@@ -113,10 +165,8 @@ def olymp_auto(nouns, sociation, inputword: str, **kwargs):
         words = words.drop_duplicates()
 
     # Выбираем случайные слова из списка
-    if len(words) > 2:
+    if len(words) >= quantity:
         words = random.sample(list(words), quantity)
-    elif len(words) > 0:
-        words = list(words)
     else:
         words = 'Error_404'
 
@@ -226,6 +276,7 @@ def olymp_start():
     olymp_matrix = session.get('olymp_matrix')
     display_olymp = session.get('display_olymp')
     game_olymp = [j for sub in olymp_matrix for j in sub]
+    game_display = [j for sub in display_olymp for j in sub]
     olymp_message = session.get('olymp_message')
 
 
@@ -255,7 +306,7 @@ def olymp_start():
     </head>
     <nav>
         <div align="right">
-            <font size="-1">Версия 0.13</font>
+            <font size="-1">Версия 0.15</font>
         </div>
     </nav>
     <body>
@@ -269,7 +320,9 @@ def olymp_start():
     if request.method == 'POST':
         if 'submit' in request.form:
             otvet = request.form['nm']
-            otvet = otvet.lower()
+            otvet = otvet.lower()           # only lower-case symbol everywhere
+            otvet = otvet.strip()           # trim all whitespace before and after a word
+            otvet = otvet.replace('і','ы')  # случайній набор букві ы
         elif 'help' in request.form:
             otvet = 'help'
         elif 'reset' in request.form:
@@ -279,7 +332,19 @@ def olymp_start():
         else:
             otvet = ''
 
+        # Работа с буквой Ё
+        if 'е' in otvet and 'ё' in ''.join(game_olymp):
+            for word in game_olymp:
+                if word.replace('ё','е') == otvet:
+                    otvet = word
 
+        # Слово уже есть в отображаемой олимпийке
+        if otvet in game_display:
+            olymp_message = f'<p>{otvet} - уже есть.</p>'
+            session['olymp_message'] = olymp_message
+            return redirect('/olymp')
+
+        # Слово есть в полной олимпийке
         if otvet in game_olymp:
 
             for i in range(rows):
@@ -297,7 +362,7 @@ def olymp_start():
                 session['olymp_message'] = olymp_message
 
             return redirect('/olymp')
-
+        # Служебные слова
         elif otvet == 'reset':
             olymp_matrix = reset_olymp(olymp_steps)
             session['olymp_matrix'] = olymp_matrix
@@ -354,4 +419,4 @@ def olymp_start():
 
 if __name__ == '__main__':
 
-    app.run(debug=False)
+    app.run(debug=True)
