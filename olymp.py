@@ -6,6 +6,7 @@
     - button for reset
 
     Versions History:
+      0.17 -- 20/04/21 Highlight old word, hints by columns
       0.16 -- 20/04/21 Highlight entered table cell for a new word
       0.15 -- 19/04/21 Bug fixes - trim spaces, word already entered, letter yo, exclude some 18+ words
       0.14 -- 14/04/21 Classes OOP (under development)
@@ -309,7 +310,7 @@ def olymp_start():
     </head>
     <nav>
         <div align="right">
-            <font size="-1">Версия 0.16</font>
+            <font size="-1">Версия 0.17</font>
         </div>
     </nav>
     <body>
@@ -345,6 +346,7 @@ def olymp_start():
         if otvet in game_display:
             olymp_message = f'<p>{otvet} - уже есть.</p>'
             session['olymp_message'] = olymp_message
+            session['olymp_highlight'] = otvet
             return redirect('/olymp')
 
         # Слово есть в полной олимпийке
@@ -380,10 +382,14 @@ def olymp_start():
             return redirect('/olymp')
 
         elif otvet == 'help':
-            for i in range(rows):
-                for j in range(1, cols):
+            only_this_column = False  # Подсказки только по первой колонке, где нет отгадок
+            for j in range(1, cols):
+                for i in range(rows):
                     if display_olymp[i][j] != olymp_matrix[i][j]:
                         display_olymp[i][j] = f'{olymp_matrix[i][j][0]}{"*" * (len(olymp_matrix[i][j])-2)}{olymp_matrix[i][j][-1]}'
+                        only_this_column = True
+                if only_this_column:
+                    break
             session['display_olymp'] = display_olymp
             olymp_message = f'<p>Подсказки - с количеством букв.</p>'
             session['olymp_message'] = olymp_message
@@ -422,8 +428,10 @@ def olymp_start():
     # Highlight a new word in a table cell -- only 1 time!
     if olymp_highlight != '':
         olymp_highlight = f'>{olymp_highlight}<'
-        # highlight color = #d5f7e2 -- update to style in the future
-        highlighted_cell = f''' style="background-color:#d5f7e2;"{olymp_highlight}'''
+        highlight_color = '#d5f7e2'              # -- update to style in the future
+        if 'уже есть' in olymp_message:
+            highlight_color = '#ffc266'
+        highlighted_cell = f''' style="background-color:{highlight_color};"{olymp_highlight}'''
         page = page.replace(olymp_highlight, highlighted_cell)
         session['olymp_highlight'] = ''      # delete highlight
 
