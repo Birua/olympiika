@@ -6,11 +6,12 @@
     - button for reset
 
     Versions History:
-    - 0.15 -- 19/04/21 Bug fixes - trim spaces, word already entered, letter yo, exclude some 18+ words
-    - 0.14 -- 14/04/21 Classes OOP (under development)
-    - 0.13 -- 02/04/21 Nouns and Sociation load optimization
-    - 0.12 -- Mobile view hotfix
-    - 0.11 -- First successful deploy to heroku. Dated April 01, 2021
+      0.16 -- 20/04/21 Highlight entered table cell for a new word
+      0.15 -- 19/04/21 Bug fixes - trim spaces, word already entered, letter yo, exclude some 18+ words
+      0.14 -- 14/04/21 Classes OOP (under development)
+      0.13 -- 02/04/21 Nouns and Sociation load optimization
+      0.12 -- Mobile view hotfix
+      0.11 -- First successful deploy to heroku. Dated April 01, 2021
 
 '''
 from flask import Flask, redirect, request, session
@@ -262,6 +263,7 @@ def olymp_index():
         display_olymp[i][0] = olymp_matrix[i][0]
     session['display_olymp'] = display_olymp
     session['olymp_message'] = f'<p>Приветствую Вас!</p>'
+    session['olymp_highlight'] = ''
 
     return redirect('/olymp')
 
@@ -278,6 +280,7 @@ def olymp_start():
     game_olymp = [j for sub in olymp_matrix for j in sub]
     game_display = [j for sub in display_olymp for j in sub]
     olymp_message = session.get('olymp_message')
+    olymp_highlight = session.get('olymp_highlight')
 
 
     input_form = '''
@@ -306,7 +309,7 @@ def olymp_start():
     </head>
     <nav>
         <div align="right">
-            <font size="-1">Версия 0.15</font>
+            <font size="-1">Версия 0.16</font>
         </div>
     </nav>
     <body>
@@ -356,6 +359,7 @@ def olymp_start():
 
             olymp_message = f'<p>+{otvet}</p>'
             session['olymp_message'] = olymp_message
+            session['olymp_highlight'] = otvet
 
             if display_olymp == olymp_matrix:
                 olymp_message = f'<p>Поздравляю!</p>'
@@ -415,8 +419,16 @@ def olymp_start():
 
             </body></html>'''
 
+    # Highlight a new word in a table cell -- only 1 time!
+    if olymp_highlight != '':
+        olymp_highlight = f'>{olymp_highlight}<'
+        # highlight color = #d5f7e2 -- update to style in the future
+        highlighted_cell = f''' style="background-color:#d5f7e2;"{olymp_highlight}'''
+        page = page.replace(olymp_highlight, highlighted_cell)
+        session['olymp_highlight'] = ''      # delete highlight
+
     return page
 
 if __name__ == '__main__':
 
-    app.run(debug=True)
+    app.run(debug=False)
