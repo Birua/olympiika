@@ -1,4 +1,4 @@
-'''
+"""
     Flask app for word game Olimpiika.
     - generates olimpiika tree automatically from sociation.org data
     - button for hints (first and last letters in a word with * for other letters)
@@ -6,6 +6,7 @@
     - button for reset
 
     Versions History:
+      0.18 -- 28/04/21 time статистика для будущей оптимизации, div для таблицы
       0.17 -- 20/04/21 Highlight old word, hints by columns
       0.16 -- 20/04/21 Highlight entered table cell for a new word
       0.15 -- 19/04/21 Bug fixes - trim spaces, word already entered, letter yo, exclude some 18+ words
@@ -14,11 +15,12 @@
       0.12 -- Mobile view hotfix
       0.11 -- First successful deploy to heroku. Dated April 01, 2021
 
-'''
+"""
 from flask import Flask, redirect, request, session
 import pandas as pd
 import random
 import math
+import time
 
 app = Flask(__name__)
 # Set the secret key to some random bytes. Keep this really secret!
@@ -135,7 +137,7 @@ def olymp_auto(nouns, sociation, inputword: str, **kwargs):
                  'секс', 'совокупление', 'хуй', 'шлюха', 'эрекция', 'эротика',
                  'сосок', 'оргия', 'клитор', 'девственность', 'возбуждение',
                  'влагалище', 'дефлорация', 'зачатие', 'фетиш',
-                 'проституция',]
+                 'проституция', ]
 
     Nouns = nouns
     Sociation = sociation
@@ -159,8 +161,8 @@ def olymp_auto(nouns, sociation, inputword: str, **kwargs):
         # только существительные
         aa = aa[aa.isin(Nouns[0])]
         bb = bb[bb.isin(Nouns[0])]
-        # по 4 слова из кажого списка
-        words = aa[0:4].append(bb[0:4])
+        # по 6 и 4 слова из кажого списка
+        words = aa[0:6].append(bb[0:4])
         words = words.drop_duplicates()
     else:
         words = aa.append(bb)
@@ -175,7 +177,7 @@ def olymp_auto(nouns, sociation, inputword: str, **kwargs):
     return words
 
 
-def olymp_gen(nouns, sociation, olymp_steps, starting_word = 'random'):
+def olymp_gen(nouns, sociation, olymp_steps, starting_word='random'):
     """ Генератор олимпиек
         Превращает одно слово (или случайное) в цепочку ассоциаций
         в виде олимпийки.
@@ -190,7 +192,6 @@ def olymp_gen(nouns, sociation, olymp_steps, starting_word = 'random'):
     """
     Nouns = nouns
     Sociation = sociation
-
 
     if starting_word == 'random':
         starting_word = Sociation.sample().values[0][0]
@@ -223,14 +224,18 @@ def reset_olymp(olymp_steps):
     """
     rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
 
+    start = time.time()
+    number_of_attempts = 1
+
     Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
     Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
 
-    game_olymp = ['  ']
+    game_olymp = [' ']
     # restart auto generator for Random word until it gets a full game_olymp list
     while any([x.strip() == '' for x in game_olymp]) or len(game_olymp) != 2**(olymp_steps+1) - 1:
         game_olymp = olymp_gen(Nouns, Sociation, olymp_steps, starting_word='random')
-    # print(len(game_olymp), 2**(olymp_steps+1) - 1, game_olymp, [x.strip() == '' for x in game_olymp])
+        print(f'Попытка {number_of_attempts}, слово: "{game_olymp[0]}", время: {(time.time() - start):.3f} с.')
+        number_of_attempts += 1
 
     olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
     # Превращаем строку в 2д матрицу
@@ -251,6 +256,7 @@ def reset_olymp(olymp_steps):
 
     return olymp_matrix
 
+
 @app.route('/', methods=['POST', 'GET'])
 def olymp_index():
 
@@ -268,10 +274,11 @@ def olymp_index():
 
     return redirect('/olymp')
 
+
 @app.route('/olymp', methods=['POST', 'GET'])
 def olymp_start():
 
-    if session.get('olymp_steps') == None:
+    if session.get('olymp_steps') is None:
         return redirect('/')
 
     olymp_steps = session.get('olymp_steps')
@@ -282,7 +289,6 @@ def olymp_start():
     game_display = [j for sub in display_olymp for j in sub]
     olymp_message = session.get('olymp_message')
     olymp_highlight = session.get('olymp_highlight')
-
 
     input_form = '''
               <form action = "/olymp" method = "post">
@@ -310,7 +316,7 @@ def olymp_start():
     </head>
     <nav>
         <div align="right">
-            <font size="-1">Версия 0.17</font>
+            <font size="-1">Версия 0.18</font>
         </div>
     </nav>
     <body>
@@ -326,7 +332,7 @@ def olymp_start():
             otvet = request.form['nm']
             otvet = otvet.lower()           # only lower-case symbol everywhere
             otvet = otvet.strip()           # trim all whitespace before and after a word
-            otvet = otvet.replace('і','ы')  # случайній набор букві ы
+            otvet = otvet.replace('і', 'ы')  # случайній набор букві ы
         elif 'help' in request.form:
             otvet = 'help'
         elif 'reset' in request.form:
@@ -339,7 +345,7 @@ def olymp_start():
         # Работа с буквой Ё
         if 'е' in otvet and 'ё' in ''.join(game_olymp):
             for word in game_olymp:
-                if word.replace('ё','е') == otvet:
+                if word.replace('ё', 'е') == otvet:
                     otvet = word
 
         # Слово уже есть в отображаемой олимпийке
@@ -370,6 +376,9 @@ def olymp_start():
             return redirect('/olymp')
         # Служебные слова
         elif otvet == 'reset':
+
+            start = time.time()
+
             olymp_matrix = reset_olymp(olymp_steps)
             session['olymp_matrix'] = olymp_matrix
             display_olymp = [[' ' for i in range(cols)] for j in range(rows)]
@@ -377,8 +386,9 @@ def olymp_start():
                 display_olymp[i][0] = olymp_matrix[i][0]
             session['display_olymp'] = display_olymp
 
-            olymp_message = f'<p>Новая олимпийка.</p>'
+            olymp_message = f'<p>Новая олимпийка. Время создания: {(time.time() - start):.3f} с.</p>'
             session['olymp_message'] = olymp_message
+
             return redirect('/olymp')
 
         elif otvet == 'help':
@@ -386,7 +396,11 @@ def olymp_start():
             for j in range(1, cols):
                 for i in range(rows):
                     if display_olymp[i][j] != olymp_matrix[i][j]:
-                        display_olymp[i][j] = f'{olymp_matrix[i][j][0]}{"*" * (len(olymp_matrix[i][j])-2)}{olymp_matrix[i][j][-1]}'
+                        display_olymp[i][j] = (
+                            f'{olymp_matrix[i][j][0]}'
+                            f'{"*" * (len(olymp_matrix[i][j])-2)}'
+                            f'{olymp_matrix[i][j][-1]}'
+                        )
                         only_this_column = True
                 if only_this_column:
                     break
@@ -408,10 +422,11 @@ def olymp_start():
                 session['olymp_message'] = olymp_message
             return redirect('/olymp')
 
-
     page = f'{page_head}' \
+           f'''<div style="overflow-x:auto;">''' \
            f'{list_to_rowspanhtml(display_olymp)}' \
            f'{olymp_message}' \
+           f'</div>' \
            f'''
             <br />&nbsp;<br />
             <br />&nbsp;<br />
@@ -427,8 +442,8 @@ def olymp_start():
 
     # Highlight a new word in a table cell -- only 1 time!
     if olymp_highlight != '':
-        olymp_highlight = f'>{olymp_highlight}<'
-        highlight_color = '#d5f7e2'              # -- update to style in the future
+        olymp_highlight = f'>{olymp_highlight}<'  # whole cell in a table
+        highlight_color = '#d5f7e2'               # -- update to style in the future
         if 'уже есть' in olymp_message:
             highlight_color = '#ffc266'
         highlighted_cell = f''' style="background-color:{highlight_color};"{olymp_highlight}'''
@@ -436,6 +451,7 @@ def olymp_start():
         session['olymp_highlight'] = ''      # delete highlight
 
     return page
+
 
 if __name__ == '__main__':
 
