@@ -1,11 +1,13 @@
 """
-    Flask app for word game Olimpiika.
-    - generates olimpiika tree automatically from sociation.org data
+    Flask app for word game Olympiika.
+    - generates olympiika tree automatically from sociation.org data
     - button for hints (first and last letters in a word with * for other letters)
     - button for solution
     - button for reset
 
     Versions History:
+      0.20 -- 26/05/21 Class implementation
+      0.19 -- 19/05/21 Class OOP
       0.18 -- 28/04/21 time статистика для будущей оптимизации, div для таблицы
       0.17 -- 20/04/21 Highlight old word, hints by columns
       0.16 -- 20/04/21 Highlight entered table cell for a new word
@@ -27,9 +29,9 @@ app = Flask(__name__)
 app.secret_key = b'197alop_651351_ffg_2930'
 
 
-class Olimpiika:
+class Olympiika:
     '''
-    Создает, проверяет и сохраняет олимпийки
+    Создает или загружает олимпийки
 
     Args:
         steps (int):
@@ -46,13 +48,16 @@ class Olimpiika:
             начальное слово
         difficulty (str):
             сложность ассоциаций
+        game_olymp (list: str):
+            список слов готовой олимпийки, начиная с исходного, потом пара на него, потом пара на 1-е слово и т.д.
+            (!) Это главный результат работы этого класса.
+        olymp_matrix (2d list: str):
+            матрица слов - для удобства итерации
+        attempts (int):
+            сколько было попыток создания (неудачные + 1)
     Methods:
-        hints():
-            Подсказки с количеством букв: пример = п****р
-        solution():
-            Все ответы
         reset():
-            Сброс
+            Сброс game_olymp и olymp_matrix на новое со случайным начальным словом
         save():
         load():
     '''
@@ -63,6 +68,159 @@ class Olimpiika:
             self.difficulty = 'easy'
         else:
             self.difficulty = kwargs['difficulty']
+        self.sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
+        self.nouns = pd.read_csv("static/russian_nouns.csv", header=None)
+
+        self.reset_olymp()
+
+    def __repr__(self):
+        return f"Olympiika({self.steps!r},{self.starting_word!r})"
+
+    def __str__(self):
+        return f"Olympiika: {self.steps} steps, starting_word = {self.starting_word!r}"
+
+    def olymp_auto(self, inputword: str, **kwargs):
+        """ Возвращает желаемое число ассоциаций по sociation.org.tsv
+            Одно слово превращаем в 2 или больше через ассоциации.
+        Args:
+          inputword: str - исходное слово
+        Kwargs:
+          difficulty: str - сложность ассоциаций
+             'easy' - 4 первых (по умолчанию) или 'hard'- весь список
+          quantity: int - количество слов на выдачу
+             2 - по умолчанию
+          exclude: list of str
+             список слов на исключение
+        Returns:
+          words: List of strings
+        """
+        # Lets define default keyword arguments and assign to variables
+        if not ("difficulty" in kwargs):
+            difficulty = 'easy'
+        else:
+            difficulty = kwargs['difficulty']
+        if not ("quantity" in kwargs):
+            quantity = 2
+        else:
+            quantity = kwargs['quantity']
+        if not ("exclude" in kwargs):
+            exclude = []
+        else:
+            exclude = kwargs['exclude']
+
+        # Фильтрация слов 18+
+        exclude18 = ['член', 'мастурбация', 'минет', 'порнография', 'стриптиз',
+                     'анал', 'куннилингус', 'порно', 'презерватив', 'презервативы',
+                     'секс', 'совокупление', 'хуй', 'шлюха', 'эрекция', 'эротика',
+                     'сосок', 'оргия', 'клитор', 'девственность', 'возбуждение',
+                     'влагалище', 'дефлорация', 'зачатие', 'фетиш', 'оргазм',
+                     'проституция', ]
+
+        Nouns = self.nouns
+        Sociation = self.sociation
+
+        aa = Sociation.loc[Sociation[0] == inputword][1]
+        bb = Sociation.loc[Sociation[1] == inputword][0]
+
+        # почистим похожие на исходное слова
+        aa = aa.drop(aa[aa.str.contains(inputword[:3])].index)
+        bb = bb.drop(bb[bb.str.contains(inputword[:3])].index)
+
+        # Уберем слова, которые даны в списке исключений
+        # ~ - инвертируем булины
+        aa = aa[~aa.isin(exclude18)]
+        bb = bb[~bb.isin(exclude18)]
+        aa = aa[~aa.isin(exclude)]
+        bb = bb[~bb.isin(exclude)]
+
+        # Составляем список с учетом сложности
+        if difficulty == 'easy':
+            # только существительные
+            aa = aa[aa.isin(Nouns[0])]
+            bb = bb[bb.isin(Nouns[0])]
+            # по 6 и 4 слова из кажого списка
+            words = aa[0:6].append(bb[0:4])
+            words = words.drop_duplicates()
+        else:
+            words = aa.append(bb)
+            words = words.drop_duplicates()
+
+        # Выбираем случайные слова из списка
+        if len(words) >= quantity:
+            words = random.sample(list(words), quantity)
+        else:
+            words = 'Error_404'
+
+        return words
+
+    def olymp_gen(self):
+        """ Генератор олимпиек
+            Превращает одно слово (или случайное) в цепочку ассоциаций
+            в виде олимпийки.
+        """
+        Nouns = self.nouns
+        Sociation = self.sociation
+        starting_word = self.starting_word
+        olymp_steps = self.steps
+
+        if starting_word == 'random':
+            starting_word = Sociation[0][Sociation[0].isin(Nouns[0])].sample().values[0]
+        # print(starting_word)
+
+        olymp_list = [starting_word]
+        i = 0
+        while i <= (2 ** olymp_steps - 2):  # 2**3 - 2 = 6 - получаем пару ассоциаций для 6 слов
+            # extend not append - because [1,2].append([3,4]) = [1,2,[3,4]]
+            # [1,2].extend([3,4]) = [1,2,3,4]
+            new_pair = self.olymp_auto(starting_word, quantity=2, exclude=olymp_list)
+            if new_pair == 'Error_404':
+                new_pair = (starting_word, 'Error_404')
+                break
+            olymp_list.extend(new_pair)
+            i += 1
+            starting_word = olymp_list[i]
+
+        return olymp_list
+
+    def reset_olymp(self):
+        """ Сброс - создание новой случайной олимпийки.
+        """
+        start = time.time()
+        olymp_steps = self.steps
+        rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
+
+        number_of_attempts = 1
+
+        Nouns = self.nouns
+        Sociation = self.sociation
+
+        game_olymp = [' ']
+        # restart auto generator for Random word until it gets a full game_olymp list
+        while any([x.strip() == '' for x in game_olymp]) or len(game_olymp) != 2 ** (olymp_steps + 1) - 1:
+            game_olymp = self.olymp_gen()
+            print(f'Попытка {number_of_attempts}, слово: "{game_olymp[0]}", время: {(time.time() - start):.3f} с.')
+            number_of_attempts += 1
+
+        self.attempts = number_of_attempts - 1
+        olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
+        # Превращаем строку в 2д матрицу
+        i = 0
+        j = 0
+        for word in game_olymp:
+            nomer = game_olymp.index(word) + 1
+            for x in range(int(rows / 2 ** int(math.log2(nomer)))):
+                olymp_matrix[i][j] = word
+                i += 1
+            if i > rows - 1:
+                i = 0
+                j += 1
+
+        # Инвертируем матрицу
+        for i in range(rows):
+            olymp_matrix[i] = olymp_matrix[i][::-1]
+
+        self.game_olymp = game_olymp
+        self.olymp_matrix = olymp_matrix
 
 
 def list_to_rowspanhtml(olymp_list):
@@ -100,169 +258,15 @@ def list_to_rowspanhtml(olymp_list):
     return htmltable
 
 
-def olymp_auto(nouns, sociation, inputword: str, **kwargs):
-    """ Возвращает желаемое число ассоциаций по sociation.org.tsv
-        Одно слово превращаем в 2 или больше через ассоциации.
-    Args:
-      nouns - dataframe существительных
-      sociation - dataframe sociation
-      inputword: str - исходное слово
-    Kwargs:
-      difficulty: str - сложность ассоциаций
-         'easy' - 4 первых (по умолчанию) или 'hard'- весь список
-      quantity: int - количество слов на выдачу
-         2 - по умолчанию
-      exclude: list of str
-         список слов на исключение
-    Returns:
-      words: List of strings
-    """
-    # Lets define default keyword arguments and assign to variables
-    if not ("difficulty" in kwargs):
-        difficulty = 'easy'
-    else:
-        difficulty = kwargs['difficulty']
-    if not ("quantity" in kwargs):
-        quantity = 2
-    else:
-        quantity = kwargs['quantity']
-    if not ("exclude" in kwargs):
-        exclude = []
-    else:
-        exclude = kwargs['exclude']
-
-    # Фильтрация слов 18+
-    exclude18 = ['член', 'мастурбация', 'минет', 'порнография', 'стриптиз',
-                 'анал', 'куннилингус', 'порно', 'презерватив', 'презервативы',
-                 'секс', 'совокупление', 'хуй', 'шлюха', 'эрекция', 'эротика',
-                 'сосок', 'оргия', 'клитор', 'девственность', 'возбуждение',
-                 'влагалище', 'дефлорация', 'зачатие', 'фетиш',
-                 'проституция', ]
-
-    Nouns = nouns
-    Sociation = sociation
-
-    aa = Sociation.loc[Sociation[0] == inputword][1]
-    bb = Sociation.loc[Sociation[1] == inputword][0]
-
-    # почистим похожие на исходное слова
-    aa = aa.drop(aa[aa.str.contains(inputword[:3])].index)
-    bb = bb.drop(bb[bb.str.contains(inputword[:3])].index)
-
-    # Уберем слова, которые даны в списке исключений
-    # ~ - инвертируем булины
-    aa = aa[~aa.isin(exclude18)]
-    bb = bb[~bb.isin(exclude18)]
-    aa = aa[~aa.isin(exclude)]
-    bb = bb[~bb.isin(exclude)]
-
-    # Составляем список с учетом сложности
-    if difficulty == 'easy':
-        # только существительные
-        aa = aa[aa.isin(Nouns[0])]
-        bb = bb[bb.isin(Nouns[0])]
-        # по 6 и 4 слова из кажого списка
-        words = aa[0:6].append(bb[0:4])
-        words = words.drop_duplicates()
-    else:
-        words = aa.append(bb)
-        words = words.drop_duplicates()
-
-    # Выбираем случайные слова из списка
-    if len(words) >= quantity:
-        words = random.sample(list(words), quantity)
-    else:
-        words = 'Error_404'
-
-    return words
-
-
-def olymp_gen(nouns, sociation, olymp_steps, starting_word='random'):
-    """ Генератор олимпиек
-        Превращает одно слово (или случайное) в цепочку ассоциаций
-        в виде олимпийки.
-    Args:
-      nouns - dataframe существительных
-      sociation - dataframe sociation
-      olymp_steps: int - к-во ступеней: (1) - слово + 2 ассоциации, (2) - слово + 2 ассоциации + 4 ассоциации и т.п.
-    Kwargs:
-      starting_word: str - начальное слово, случайное по умолчанию
-    Returns:
-      List of strings
-    """
-    Nouns = nouns
-    Sociation = sociation
-
-    if starting_word == 'random':
-        starting_word = Sociation.sample().values[0][0]
-    # print(starting_word)
-
-    olymp_list = [starting_word]
-    i = 0
-    while i <= (2**olymp_steps - 2):  # 2**3 - 2 = 6 - получаем пару ассоциаций для 6 слов
-        # extend not append - because [1,2].append([3,4]) = [1,2,[3,4]]
-        # [1,2].extend([3,4]) = [1,2,3,4]
-        new_pair = olymp_auto(Nouns, Sociation, starting_word, quantity=2, exclude=olymp_list)
-        if new_pair == 'Error_404':
-            new_pair = (starting_word, 'Error_404')
-            break
-        olymp_list.extend(new_pair)
-        i += 1
-        starting_word = olymp_list[i]
-
-    return olymp_list
-
-
-def reset_olymp(olymp_steps):
-    """ Сброс - создание новой случайной олимпийки.
-    Args:
-      olymp_steps: int - к-во ступеней: (1) - слово + 2 ассоциации, (2) - слово + 2 ассоциации + 4 ассоциации и т.п.
-    Kwargs:
-
-    Returns:
-      olymp_matrix
-    """
-    rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
-
-    start = time.time()
-    number_of_attempts = 1
-
-    Nouns = pd.read_csv("static/russian_nouns.csv", header=None)
-    Sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
-
-    game_olymp = [' ']
-    # restart auto generator for Random word until it gets a full game_olymp list
-    while any([x.strip() == '' for x in game_olymp]) or len(game_olymp) != 2**(olymp_steps+1) - 1:
-        game_olymp = olymp_gen(Nouns, Sociation, olymp_steps, starting_word='random')
-        print(f'Попытка {number_of_attempts}, слово: "{game_olymp[0]}", время: {(time.time() - start):.3f} с.')
-        number_of_attempts += 1
-
-    olymp_matrix = [[' ' for i in range(cols)] for j in range(rows)]
-    # Превращаем строку в 2д матрицу
-    i = 0
-    j = 0
-    for word in game_olymp:
-        nomer = game_olymp.index(word) + 1
-        for x in range(int(rows / 2 ** int(math.log2(nomer)))):
-            olymp_matrix[i][j] = word
-            i += 1
-        if i > rows - 1:
-            i = 0
-            j += 1
-
-    # Инвертируем матрицу
-    for i in range(rows):
-        olymp_matrix[i] = olymp_matrix[i][::-1]
-
-    return olymp_matrix
-
-
 @app.route('/', methods=['POST', 'GET'])
 def olymp_index():
 
     olymp_steps = 4
     session['olymp_steps'] = olymp_steps
-    olymp_matrix = reset_olymp(olymp_steps)
+    # Olympiika class init
+    olympiika_standart = Olympiika(olymp_steps)
+    olymp_matrix = olympiika_standart.olymp_matrix
+
     rows, cols = (int(2 ** olymp_steps), (olymp_steps + 1))
     session['olymp_matrix'] = olymp_matrix
     display_olymp = [[' ' for i in range(cols)] for j in range(rows)]
@@ -316,7 +320,7 @@ def olymp_start():
     </head>
     <nav>
         <div align="right">
-            <font size="-1">Версия 0.18</font>
+            <font size="-1">Версия 0.20</font>
         </div>
     </nav>
     <body>
@@ -324,8 +328,6 @@ def olymp_start():
     
     <main>
     '''
-# <link rel="stylesheet" href="{url_for('static', filename='olymp.css')}">
-# <link rel="stylesheet" href="https://cryptex.games/online/045/go/stat2/stat2.css">
 
     if request.method == 'POST':
         if 'submit' in request.form:
@@ -342,10 +344,14 @@ def olymp_start():
         else:
             otvet = ''
 
-        # Работа с буквой Ё
+        # Работа с буквой Ё и Ъ
         if 'е' in otvet and 'ё' in ''.join(game_olymp):
             for word in game_olymp:
                 if word.replace('ё', 'е') == otvet:
+                    otvet = word
+        if 'ь' in otvet and 'ъ' in ''.join(game_olymp):
+            for word in game_olymp:
+                if word.replace('ъ', 'ь') == otvet:
                     otvet = word
 
         # Слово уже есть в отображаемой олимпийке
@@ -379,7 +385,10 @@ def olymp_start():
 
             start = time.time()
 
-            olymp_matrix = reset_olymp(olymp_steps)
+            # Olympiika class init
+            olympiika_standart = Olympiika(olymp_steps)
+            olymp_matrix = olympiika_standart.olymp_matrix
+
             session['olymp_matrix'] = olymp_matrix
             display_olymp = [[' ' for i in range(cols)] for j in range(rows)]
             for i in range(rows):
