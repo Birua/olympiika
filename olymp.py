@@ -6,6 +6,7 @@
     - button for reset
 
     Versions History:
+      0.21 -- 26/05/21 Optimization - sociation_nouns
       0.20 -- 26/05/21 Class implementation
       0.19 -- 19/05/21 Class OOP
       0.18 -- 28/04/21 time статистика для будущей оптимизации, div для таблицы
@@ -68,8 +69,10 @@ class Olympiika:
             self.difficulty = 'easy'
         else:
             self.difficulty = kwargs['difficulty']
-        self.sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
-        self.nouns = pd.read_csv("static/russian_nouns.csv", header=None)
+        # self.sociation = pd.read_csv("static/sociation.org.tsv", header=None, sep='\t')
+        # self.nouns = pd.read_csv("static/russian_nouns.csv", header=None)
+        # Optimization - precombine 2 dataframes by pd.merge
+        self.sociation = pd.read_csv("static/sociation_nouns.csv", header=None)
 
         self.reset_olymp()
 
@@ -116,7 +119,7 @@ class Olympiika:
                      'влагалище', 'дефлорация', 'зачатие', 'фетиш', 'оргазм',
                      'проституция', ]
 
-        Nouns = self.nouns
+        # Nouns = self.nouns
         Sociation = self.sociation
 
         aa = Sociation.loc[Sociation[0] == inputword][1]
@@ -136,8 +139,9 @@ class Olympiika:
         # Составляем список с учетом сложности
         if difficulty == 'easy':
             # только существительные
-            aa = aa[aa.isin(Nouns[0])]
-            bb = bb[bb.isin(Nouns[0])]
+            # aa = aa[aa.isin(Nouns[0])]
+            # bb = bb[bb.isin(Nouns[0])]
+            # redundant - sociation and nouns are already merged
             # по 6 и 4 слова из кажого списка
             words = aa[0:6].append(bb[0:4])
             words = words.drop_duplicates()
@@ -158,13 +162,14 @@ class Olympiika:
             Превращает одно слово (или случайное) в цепочку ассоциаций
             в виде олимпийки.
         """
-        Nouns = self.nouns
+        # Nouns = self.nouns
         Sociation = self.sociation
         starting_word = self.starting_word
         olymp_steps = self.steps
 
         if starting_word == 'random':
-            starting_word = Sociation[0][Sociation[0].isin(Nouns[0])].sample().values[0]
+            # starting_word = Sociation[0][Sociation[0].isin(Nouns[0])].sample().values[0]
+            starting_word = Sociation[0].sample().values[0]
         # print(starting_word)
 
         olymp_list = [starting_word]
@@ -191,7 +196,7 @@ class Olympiika:
 
         number_of_attempts = 1
 
-        Nouns = self.nouns
+        # Nouns = self.nouns
         Sociation = self.sociation
 
         game_olymp = [' ']
@@ -320,7 +325,7 @@ def olymp_start():
     </head>
     <nav>
         <div align="right">
-            <font size="-1">Версия 0.20</font>
+            <font size="-1">Версия 0.21</font>
         </div>
     </nav>
     <body>
